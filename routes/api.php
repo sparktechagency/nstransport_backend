@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\api\BookingController;
 use App\Http\Controllers\api\CategoryController;
+use App\Http\Controllers\api\HomeController;
 use App\Http\Controllers\api\VehicleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -10,5 +12,11 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 
-Route::resource('category',CategoryController::class);
-Route::resource('vehicle',VehicleController::class);
+
+Route::get('statistic', [HomeController::class, 'statistic']);
+Route::post('booking', [BookingController::class, 'booking']);
+Route::get('search', [HomeController::class, 'search']);
+Route::get('search_by_type', [HomeController::class, 'searchByType']);
+
+Route::resource('category', CategoryController::class);
+Route::resource('vehicle', VehicleController::class);
