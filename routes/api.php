@@ -17,6 +17,7 @@ Route::get('statistic', [HomeController::class, 'statistic']);
 Route::post('booking', [BookingController::class, 'booking']);
 Route::get('search', [HomeController::class, 'search']);
 Route::get('search_by_type', [HomeController::class, 'searchByType']);
+Route::get('total_vehicle', [HomeController::class, 'totalVehicle']);
 
 Route::resource('category', CategoryController::class);
 Route::resource('vehicle', VehicleController::class);
