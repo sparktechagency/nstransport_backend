@@ -108,10 +108,11 @@ class HomeController extends Controller
 
         $available_info = $available_vehicles->groupBy('category')->map(function ($categoryVehicles) {
             return [
+                'category' => $categoryVehicles->first()['category'],
                 'count' => $categoryVehicles->count(),
                 'image' => $categoryVehicles->first()['image'],
             ];
-        });
+        })->values()->toArray();
 
         return response()->json([
             'status'  => true,
