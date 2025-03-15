@@ -15,15 +15,50 @@ class VehicleController extends Controller
      */
     public function index(Request $request)
     {
-        $vehicle = Vahicle::with('category');
+        $today        = now()->format('Y-m-d');
+        $current_time = now()->format('H:i:s');
+        $vehicleQuery = Vahicle::with('category', 'bookings');
+
         if ($request->has('search')) {
-            $vehicle = $vehicle->where('name', 'LIKE', '%' . $request->search . '%')->orWhere('number_plate', 'LIKE', '%' . $request->search . '%');
+            $vehicleQuery->where(function ($query) use ($request) {
+                $query->where('name', 'LIKE', '%' . $request->search . '%')
+                    ->orWhere('number_plate', 'LIKE', '%' . $request->search . '%');
+            });
         }
-        $vehicle = $vehicle->latest('id')->paginate($request->per_page ?? 10);
+
+        $vehicles = $vehicleQuery->latest('id')->paginate($request->per_page ?? 10);
+
+        $vehicles->getCollection()->transform(function ($vehicle) use ($today, $current_time) {
+            $all_booking_dates = $vehicle->bookings->flatMap(function ($booking) {
+                return $booking->booking_dates;
+            })->unique()->toArray();
+
+            $is_booked_today = in_array($today, $all_booking_dates);
+            $is_booked       = false;
+
+            foreach ($vehicle->bookings as $booking) {
+                if ($booking->booking_type === 'multiple_day' && in_array($today, $booking->booking_dates)) {
+                    $is_booked = true;
+                    break;
+                } elseif ($booking->booking_type === 'single_day' && $booking->booking_time_to >= $current_time) {
+                    $is_booked = true;
+                    break;
+                }
+            }
+
+            return [
+                "id"       => $vehicle->id,
+                "title"    => $vehicle->name,
+                "code"     => $vehicle->number_plate,
+                'category' => $vehicle->category,
+                'book'     => $is_booked,
+            ];
+        });
+
         return response()->json([
             'status'  => true,
-            'message' => 'Vehicle retreived successfully',
-            'data'    => $vehicle,
+            'message' => 'Vehicles retrieved successfully',
+            'data'    => $vehicles,
         ]);
     }
 

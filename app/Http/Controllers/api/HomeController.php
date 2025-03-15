@@ -20,8 +20,8 @@ class HomeController extends Controller
             ->orWhere('number_plate', 'LIKE', '%' . $request->search . '%')
             ->paginate($per_page);
 
+
         $data = $vehicles->map(function ($vehicle) use ($today, $current_time) {
-            // Collect all booking dates for this vehicle
             $all_booking_dates = $vehicle->bookings->flatMap(function ($booking) {
                 return $booking->booking_dates;
             })->unique()->toArray();
@@ -45,7 +45,7 @@ class HomeController extends Controller
                 "id"       => $vehicle->id,
                 "title"    => $vehicle->name,
                 "code"     => $vehicle->number_plate,
-                'category' => $vehicle->category->name,
+                'category' => $vehicle->category,
                 'image'    => $vehicle->category->icon,
                 'book'     => $is_booked,
                 'booked'   => $all_booking_dates,
@@ -178,7 +178,7 @@ class HomeController extends Controller
                     "id"          => $vehicle->id,
                     "title"       => $vehicle->name,
                     "code"        => $vehicle->number_plate,
-                    "category"    => optional($vehicle->category)->name,
+                    "category"    => $vehicle->category,
                     "image"       => optional($vehicle->category)->icon,
                     "book"        => $is_booked,
                     "booked"      => $all_booking_dates,
@@ -235,7 +235,7 @@ class HomeController extends Controller
                     "id"          => $vehicle->id,
                     "title"       => $vehicle->name,
                     "code"        => $vehicle->number_plate,
-                    "category"    => optional($vehicle->category)->name,
+                    "category"    => $vehicle->category,
                     "image"       => optional($vehicle->category)->icon,
                     "book"        => $is_booked,
                     "booked"      => $all_booking_dates,
@@ -294,7 +294,7 @@ class HomeController extends Controller
                     "id"          => $vehicle->id,
                     "title"       => $vehicle->name,
                     "code"        => $vehicle->number_plate,
-                    "category"    => optional($vehicle->category)->name,
+                    "category"    => $vehicle->category,
                     "image"       => optional($vehicle->category)->icon,
                     "book"        => $is_booked,
                     "booked"      => $all_booking_dates,
