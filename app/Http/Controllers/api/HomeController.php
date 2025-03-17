@@ -20,8 +20,8 @@ class HomeController extends Controller
             ->orWhere('number_plate', 'LIKE', '%' . $request->search . '%')
             ->paginate($per_page);
 
-
         $data = $vehicles->map(function ($vehicle) use ($today, $current_time) {
+            // Collect all booking dates for this vehicle
             $all_booking_dates = $vehicle->bookings->flatMap(function ($booking) {
                 return $booking->booking_dates;
             })->unique()->toArray();
@@ -45,10 +45,10 @@ class HomeController extends Controller
                 "id"       => $vehicle->id,
                 "title"    => $vehicle->name,
                 "code"     => $vehicle->number_plate,
-                'category' => $vehicle->category,
+                'category' => $vehicle->category->name,
                 'image'    => $vehicle->category->icon,
                 'book'     => $is_booked,
-                'booked'   => $all_booking_dates,
+                'booked'   => array_values($all_booking_dates),
             ];
         });
 
@@ -109,8 +109,8 @@ class HomeController extends Controller
         $available_info = $available_vehicles->groupBy('category')->map(function ($categoryVehicles) {
             return [
                 'category' => $categoryVehicles->first()['category'],
-                'count' => $categoryVehicles->count(),
-                'image' => $categoryVehicles->first()['image'],
+                'count'    => $categoryVehicles->count(),
+                'image'    => $categoryVehicles->first()['image'],
             ];
         })->values()->toArray();
 
@@ -143,7 +143,7 @@ class HomeController extends Controller
         $current_time = now()->format('H:i:s');
 
         if ($request->type == 'total') {
-            $vehicles = Vahicle::with('bookings');
+            $vehicles = Vahicle::with('bookings', 'category');
 
             if ($request->search) {
                 $vehicles = $vehicles->where(function ($query) use ($request) {
@@ -151,21 +151,41 @@ class HomeController extends Controller
                         ->orWhere('number_plate', 'LIKE', '%' . $request->search . '%');
                 });
             }
+            if ($request->category) {
+                $vehicles = $vehicles->whereHas('category', function ($query) use ($request) {
+                    $query->where('name', 'LIKE', '%' . $request->category . '%');
+                });
+            }
 
-            $vehicles = $vehicles->get();
+            $vehicles     = $vehicles->get();
+            $today        = now()->format('Y-m-d');
+            $current_time = now()->format('H:i:s');
 
             $data = $vehicles->map(function ($vehicle) use ($today, $current_time, $request) {
                 $all_booking_dates = $vehicle->bookings->flatMap(fn($booking) => $booking->booking_dates)->unique()->toArray();
 
                 $is_booked_today = in_array($today, $all_booking_dates);
                 $is_booked       = false;
+                $renter_info     = null;
 
                 foreach ($vehicle->bookings as $booking) {
                     if ($booking->booking_type === 'multiple_day' && in_array($today, $booking->booking_dates)) {
-                        $is_booked = true;
+                        $is_booked   = true;
+                        $renter_info = [
+                            "renter_name"       => $booking->renter_name,
+                            "phone"             => $booking->phone_number,
+                            "booking_time_from" => $booking->booking_time_from,
+                            "booking_time_to"   => $booking->booking_time_to,
+                        ];
                         break;
                     } elseif ($booking->booking_type === 'single_day' && in_array($today, $booking->booking_dates) && $booking->booking_time_to >= $current_time) {
-                        $is_booked = true;
+                        $is_booked   = true;
+                        $renter_info = [
+                            "renter_name"       => $booking->renter_name,
+                            "phone"             => $booking->phone_number,
+                            "booking_time_from" => $booking->booking_time_from,
+                            "booking_time_to"   => $booking->booking_time_to,
+                        ];
                         break;
                     }
                 }
@@ -178,27 +198,21 @@ class HomeController extends Controller
                     "id"          => $vehicle->id,
                     "title"       => $vehicle->name,
                     "code"        => $vehicle->number_plate,
-                    "category"    => $vehicle->category,
+                    "category"    => optional($vehicle->category)->name,
                     "image"       => optional($vehicle->category)->icon,
                     "book"        => $is_booked,
-                    "booked"      => $all_booking_dates,
-                    "renter_info" => $vehicle->bookings->map(function ($booking) {
-                        return [
-                            "renter_name"       => $booking->renter_name,
-                            "phone"             => $booking->phone_number,
-                            "booking_time_from" => $booking->booking_time_from,
-                            "booking_time_to"   => $booking->booking_time_to,
-                        ];
-                    }),
+                    "booked"      => array_values($all_booking_dates),
+                    "renter_info" => $renter_info,
                 ];
             })->filter()->values();
 
             return response()->json([
                 'status'  => true,
-                'message' => 'Total vehicle retrieved successfully.',
+                'message' => 'Total vehicles retrieved successfully.',
                 'data'    => $data,
             ]);
         }
+
         if ($request->type == 'booked') {
             $vehicles = Vahicle::with('bookings');
 
@@ -219,10 +233,22 @@ class HomeController extends Controller
 
                 foreach ($vehicle->bookings as $booking) {
                     if ($booking->booking_type === 'multiple_day' && in_array($today, $booking->booking_dates)) {
-                        $is_booked = true;
+                        $is_booked   = true;
+                        $renter_info = [
+                            "renter_name"       => $booking->renter_name,
+                            "phone"             => $booking->phone_number,
+                            "booking_time_from" => $booking->booking_time_from,
+                            "booking_time_to"   => $booking->booking_time_to,
+                        ];
                         break;
                     } elseif ($booking->booking_type === 'single_day' && in_array($today, $booking->booking_dates) && $booking->booking_time_to >= $current_time) {
-                        $is_booked = true;
+                        $is_booked   = true;
+                        $renter_info = [
+                            "renter_name"       => $booking->renter_name,
+                            "phone"             => $booking->phone_number,
+                            "booking_time_from" => $booking->booking_time_from,
+                            "booking_time_to"   => $booking->booking_time_to,
+                        ];
                         break;
                     }
                 }
@@ -235,18 +261,11 @@ class HomeController extends Controller
                     "id"          => $vehicle->id,
                     "title"       => $vehicle->name,
                     "code"        => $vehicle->number_plate,
-                    "category"    => $vehicle->category,
+                    "category"    => optional($vehicle->category)->name,
                     "image"       => optional($vehicle->category)->icon,
                     "book"        => $is_booked,
-                    "booked"      => $all_booking_dates,
-                    "renter_info" => $vehicle->bookings->map(function ($booking) {
-                        return [
-                            "renter_name"       => $booking->renter_name,
-                            "phone"             => $booking->phone_number,
-                            "booking_time_from" => $booking->booking_time_from,
-                            "booking_time_to"   => $booking->booking_time_to,
-                        ];
-                    }),
+                    "booked"      => array_values($all_booking_dates),
+                    "renter_info" => $renter_info,
                 ];
             })->filter()->values();
 
@@ -256,10 +275,14 @@ class HomeController extends Controller
                 'data'    => $data,
             ]);
         }
+
         if ($request->type == 'available') {
-            $vehicles = Vahicle::with('bookings')->whereHas('category', function ($query) use ($request) {
-                $query->where('name', $request->category);
-            });
+            $vehicles = Vahicle::with('bookings');
+            if ($request->category) {
+                $vehicles = $vehicles->whereHas('category', function ($query) use ($request) {
+                    $query->where('name', $request->category);
+                });
+            }
 
             if ($request->search) {
                 $vehicles = $vehicles->where(function ($query) use ($request) {
@@ -294,18 +317,11 @@ class HomeController extends Controller
                     "id"          => $vehicle->id,
                     "title"       => $vehicle->name,
                     "code"        => $vehicle->number_plate,
-                    "category"    => $vehicle->category,
+                    "category"    => optional($vehicle->category)->name,
                     "image"       => optional($vehicle->category)->icon,
                     "book"        => $is_booked,
-                    "booked"      => $all_booking_dates,
-                    "renter_info" => $vehicle->bookings->map(function ($booking) {
-                        return [
-                            "renter_name"       => $booking->renter_name,
-                            "phone"             => $booking->phone_number,
-                            "booking_time_from" => $booking->booking_time_from,
-                            "booking_time_to"   => $booking->booking_time_to,
-                        ];
-                    }),
+                    "booked"      => null,
+                    "renter_info" => null,
                 ];
             })->filter()->values();
 
@@ -322,4 +338,5 @@ class HomeController extends Controller
             'data'    => null,
         ]);
     }
+
 }
