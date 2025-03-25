@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
             CategorySeeder::class,
             VahicleSeeder::class,
             // BookingSeeder::class,
+            UserSeeder::class,
         ]);
     }
 }

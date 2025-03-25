@@ -26,7 +26,7 @@ class VehicleController extends Controller
             });
         }
 
-        $vehicles = $vehicleQuery->latest('id')->paginate($request->per_page ?? 10);
+        $vehicles = $vehicleQuery->latest('id')->paginate($request->per_page ?? 100);
 
         $vehicles->getCollection()->transform(function ($vehicle) use ($today, $current_time) {
             $all_booking_dates = $vehicle->bookings->flatMap(function ($booking) {

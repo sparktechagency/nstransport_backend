@@ -11,7 +11,7 @@ class HomeController extends Controller
 
     public function search(Request $request)
     {
-        $per_page     = $request->per_page ?? 10;
+        $per_page     = $request->per_page ?? 100;
         $today        = now()->format('Y-m-d');
         $current_time = now()->format('H:i:s');
 
