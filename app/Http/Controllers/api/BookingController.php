@@ -48,14 +48,55 @@ class BookingController extends Controller
         if (! $booking) {
             return response()->json([
                 'status'  => false,
-                'message' => 'Booking not found.',
+                'message' => 'The booking you are searching for does not exist',
                 'data'    => null,
             ]);
         }
         $booking->delete();
         return response()->json([
             'status'  => true,
-            'message' => 'Booking deleted successfully.',
+            'message' => 'Booking cancle successfully.',
+            'data'    => $booking,
+        ]);
+    }
+
+    public function bookingUpdate(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'vehicle_id'        => 'required|numeric',
+            'renter_name'       => 'required|string|max:255',
+            'phone_number'      => 'required|string|max:20',
+            'booking_type'      => 'required|string',
+            'booked_dates'      => 'required|array',
+            'booking_time_from' => ['nullable', 'regex:/^(?:2[0-3]|[01][0-9]):[0-5][0-9](?::[0-5][0-9])?$/'],
+            'booking_time_to'   => ['nullable', 'regex:/^(?:2[0-3]|[01][0-9]):[0-5][0-9](?::[0-5][0-9])?$/'],
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'status'  => false,
+                'message' => $validator->errors(),
+            ]);
+        };
+        $booking = Booking::find($id);
+        if (! $booking) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'The booking you are searching for does not exist',
+                'data'    => null,
+            ]);
+        }
+        $booking->update([
+            'vehicle_id'        => $request->vehicle_id,
+            'renter_name'       => $request->renter_name,
+            'phone_number'      => $request->phone_number,
+            'booking_type'      => $request->booking_type,
+            'booking_dates'     => $request->booked_dates,
+            'booking_time_from' => $request->booking_time_from,
+            'booking_time_to'   => $request->booking_time_to,
+        ]);
+        return response()->json([
+            'status'  => true,
+            'message' => 'Booking updated successfully.',
             'data'    => $booking,
         ]);
     }

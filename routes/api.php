@@ -25,6 +25,7 @@ Route::middleware('auth:sanctum','admin')->prefix('admin')->group(function(){
 Route::middleware('auth:sanctum','admin.user')->group(function(){
     Route::get('statistic', [HomeController::class, 'statistic']);
     Route::post('booking', [BookingController::class, 'booking']);
+    Route::put('booking-update/{id}', [BookingController::class, 'bookingUpdate']);
     Route::delete('booking-cancle/{id}', [BookingController::class, 'bookingCancle']);
     Route::get('search', [HomeController::class, 'search']);
     Route::get('search_by_type', [HomeController::class, 'searchByType']);
