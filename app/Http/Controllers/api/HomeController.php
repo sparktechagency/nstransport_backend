@@ -172,6 +172,7 @@ class HomeController extends Controller
                     if ($booking->booking_type === 'multiple_day' && in_array($today, $booking->booking_dates)) {
                         $is_booked   = true;
                         $renter_info = [
+                            "id"       => $booking->id,
                             "renter_name"       => $booking->renter_name,
                             "phone"             => $booking->phone_number,
                             "booking_time_from" => $booking->booking_time_from,
@@ -181,6 +182,7 @@ class HomeController extends Controller
                     } elseif ($booking->booking_type === 'single_day' && in_array($today, $booking->booking_dates) && $booking->booking_time_to >= $current_time) {
                         $is_booked   = true;
                         $renter_info = [
+                            "id"       => $booking->id,
                             "renter_name"       => $booking->renter_name,
                             "phone"             => $booking->phone_number,
                             "booking_time_from" => $booking->booking_time_from,
@@ -235,6 +237,7 @@ class HomeController extends Controller
                     if ($booking->booking_type === 'multiple_day' && in_array($today, $booking->booking_dates)) {
                         $is_booked   = true;
                         $renter_info = [
+                            "id"=>$booking->id,
                             "renter_name"       => $booking->renter_name,
                             "phone"             => $booking->phone_number,
                             "booking_time_from" => $booking->booking_time_from,
@@ -244,6 +247,7 @@ class HomeController extends Controller
                     } elseif ($booking->booking_type === 'single_day' && in_array($today, $booking->booking_dates) && $booking->booking_time_to >= $current_time) {
                         $is_booked   = true;
                         $renter_info = [
+                            "id"=>$booking->id,
                             "renter_name"       => $booking->renter_name,
                             "phone"             => $booking->phone_number,
                             "booking_time_from" => $booking->booking_time_from,
