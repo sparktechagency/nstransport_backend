@@ -129,6 +129,7 @@ class HomeController extends Controller
 
     public function statistic()
     {
+        return now()->format('H:i:A');
         $today         = now()->format('Y-m-d');
         $current_time  = now()->format('H:i:s');
         $total_vehicle = Vahicle::count();

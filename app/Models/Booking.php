@@ -23,6 +23,10 @@ class Booking extends Model
 
     public function getBookingDatesAttribute($dates)
     {
-        return json_decode($dates, true); 
+        return json_decode($dates, true);
+    }
+
+    public function customer(){
+        return $this->belongsTo(Customer::class);
     }
 }
