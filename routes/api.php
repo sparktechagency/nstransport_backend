@@ -37,8 +37,6 @@ Route::middleware('auth:sanctum', 'admin.user')->group(function () {
 
 
 
-
-
     Route::get('statistic', [HomeController::class, 'statistic']);
     Route::get('search', [HomeController::class, 'search']);
     Route::get('search_by_type', [HomeController::class, 'searchByType']);

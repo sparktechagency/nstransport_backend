@@ -15,43 +15,39 @@ class VehicleController extends Controller
      */
     public function index(Request $request)
     {
-        $today        = now()->format('Y-m-d');
-        $current_time = now()->format('H:i:s');
-        $vehicleQuery = Vahicle::with('category', 'bookings');
-
+        $nowDate  = now()->format('Y-m-d');
+        $nowTime  = now()->format('h:i A');
+        $vehicles = Vahicle::with('category:id,name,icon', 'bookings')->select('id', 'category_id', 'name', 'number_plate');
         if ($request->has('search')) {
-            $vehicleQuery->where(function ($query) use ($request) {
+            $vehicles->where(function ($query) use ($request) {
                 $query->where('name', 'LIKE', '%' . $request->search . '%')
                     ->orWhere('number_plate', 'LIKE', '%' . $request->search . '%');
             });
         }
 
-        $vehicles = $vehicleQuery->latest('id')->paginate($request->per_page ?? 100);
+        $vehicles = $vehicles->latest('id')->paginate($request->per_page ?? 100);
 
-        $vehicles->getCollection()->transform(function ($vehicle) use ($today, $current_time) {
-            $all_booking_dates = $vehicle->bookings->flatMap(function ($booking) {
-                return $booking->booking_dates;
-            })->unique()->toArray();
-
-            $is_booked_today = in_array($today, $all_booking_dates);
-            $is_booked       = false;
-
-            foreach ($vehicle->bookings as $booking) {
-                if ($booking->booking_type === 'multiple_day' && in_array($today, $booking->booking_dates)) {
-                    $is_booked = true;
-                    break;
-                } elseif ($booking->booking_type === 'single_day' && $booking->booking_time_to >= $current_time) {
-                    $is_booked = true;
-                    break;
-                }
+        $vehicles->getCollection()->transform(function ($vehicle) use ($nowDate, $nowTime) {
+            $upcomingBookings = $vehicle->bookings->filter(function ($booking) use ($nowDate, $nowTime) {
+                return $booking->booking_date === $nowDate &&
+                $booking->from <= $nowTime && $booking->to >= $nowTime;
+            });
+            if ($upcomingBookings->isEmpty()) {
+                return [
+                    "id"       => $vehicle->id,
+                    "title"    => $vehicle->name,
+                    "code"     => $vehicle->number_plate,
+                    "category" => $vehicle->category,
+                    "book"     => "false",
+                ];
             }
 
             return [
                 "id"       => $vehicle->id,
                 "title"    => $vehicle->name,
                 "code"     => $vehicle->number_plate,
-                'category' => $vehicle->category,
-                'book'     => $is_booked,
+                "category" => $vehicle->category,
+                "book"     => "true",
             ];
         });
 
