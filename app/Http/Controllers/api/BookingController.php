@@ -1,11 +1,12 @@
 <?php
 namespace App\Http\Controllers\api;
 
-use App\Http\Controllers\Controller;
+use Exception;
+use Carbon\Carbon;
 use App\Models\Booking;
 use App\Models\Customer;
-use Exception;
 use Illuminate\Http\Request;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 
 class BookingController extends Controller
@@ -139,30 +140,33 @@ class BookingController extends Controller
         }
     }
 
-    public function vehicleBookingList(Request $request, $id)
-    {
-        $nowDate  = now()->format('Y-m-d');
-        $nowTime  = now()->format('h:i A');
-        $bookings = Booking::with('customer')->where('vehicle_id', $id)
-            ->where(function ($query) use ($nowDate, $nowTime) {
-                $query->where('booking_date', '>', $nowDate)
-                    ->orWhere(function ($q) use ($nowDate, $nowTime) {
-                        $q->where('booking_date', $nowDate)
-                            ->where('to', '>=', $nowTime);
-                    });
-            });
-        if ($request->booking_date) {
-            $bookings = $bookings->where('booking_date', $request->booking_date);
-        } else {
-            $bookings = $bookings->orderBy('booking_date');
-        }
-        $bookings = $bookings->orderBy('from')
-            ->get();
+public function vehicleBookingList(Request $request, $id)
+{
+    $nowDate = now()->format('Y-m-d');
+    $nowTime = now()->format('h:i A');
 
-        return response()->json([
-            'status'  => true,
-            'message' => 'Vehicle booking list.',
-            'data'    => $bookings,
-        ]);
-    }
+    $bookings = Booking::with('customer')
+        ->where('vehicle_id', $id)
+        ->get()
+        ->filter(function ($booking) use ($nowDate, $nowTime) {
+            if ($booking->booking_date === $nowDate) {
+                $bookingTo   = Carbon::parse($booking->to);
+                $currentTime = Carbon::parse($nowTime);
+                return $bookingTo->gte($currentTime);
+            }
+            return $booking->booking_date > $nowDate;
+        })
+        ->sortBy([
+            ['booking_date', 'asc'],
+            ['from', 'asc'],
+        ])
+        ->values();
+
+    return response()->json([
+        'status'  => true,
+        'message' => 'Vehicle booking list.',
+        'data'    => $bookings,
+    ]);
+}
+
 }

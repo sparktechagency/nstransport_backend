@@ -8,118 +8,41 @@ use Illuminate\Support\Facades\Validator;
 
 class HomeController extends Controller
 {
-
-    // public function search(Request $request)
-    // {
-    //     $per_page     = $request->per_page ?? 100;
-    //     $today        = now()->format('Y-m-d');
-    //     $current_time = now()->format('H:i:s');
-
-    //     $vehicles = Vahicle::with('category', 'bookings')
-    //         ->where('name', 'LIKE', '%' . $request->search . '%')
-    //         ->orWhere('number_plate', 'LIKE', '%' . $request->search . '%')
-    //         ->paginate($per_page);
-
-    //     $data = $vehicles->map(function ($vehicle) use ($today, $current_time) {
-    //         // Collect all booking dates for this vehicle
-    //         $all_booking_dates = $vehicle->bookings->flatMap(function ($booking) {
-    //             return $booking->booking_dates;
-    //         })->unique()->toArray();
-
-    //         $is_booked_today = in_array($today, $all_booking_dates);
-    //         $is_booked       = false;
-
-    //         foreach ($vehicle->bookings as $booking) {
-    //             if ($booking->booking_type === 'multiple_day') {
-    //                 if (in_array($today, $booking->booking_dates)) {
-    //                     $is_booked = true;
-    //                 }
-    //             } elseif ($booking->booking_type === 'single_day') {
-    //                 if ($booking->booking_time_to >= $current_time) {
-    //                     $is_booked = true;
-    //                 }
-    //             }
-    //         }
-
-    //         return [
-    //             "id"       => $vehicle->id,
-    //             "title"    => $vehicle->name,
-    //             "code"     => $vehicle->number_plate,
-    //             'category' => $vehicle->category->name,
-    //             'image'    => $vehicle->category->icon,
-    //             'book'     => $is_booked,
-    //             'booked'   => array_values($all_booking_dates),
-    //         ];
-    //     });
-
-    //     return response()->json([
-    //         'status'  => true,
-    //         'message' => 'Data retrieved successfully',
-    //         'data'    => $data,
-    //     ]);
-    // }
-
     public function search(Request $request)
     {
-        $per_page     = $request->per_page ?? 100;
-        $today        = now()->format('Y-m-d');
-        $current_time = now()->format('H:i:s');
+        $per_page = $request->per_page ?? 100;
+        $nowDate  = now()->format('Y-m-d');
+        $nowTime  = now()->format('h:i A');
 
         $vehicles = Vahicle::with('category', 'bookings')
             ->where('name', 'LIKE', '%' . $request->search . '%')
             ->orWhere('number_plate', 'LIKE', '%' . $request->search . '%')
             ->paginate($per_page);
+        $data = $vehicles->getCollection()->transform(function ($vehicle) use ($nowDate, $nowTime) {
+            $all_booking_dates = $vehicle->bookings
+                ->filter(function ($booking) use ($nowDate) {
+                    return $booking->booking_date >= $nowDate;
+                })
+                ->pluck('booking_date')
+                ->unique()
+                ->values();
 
-        $data = $vehicles->map(function ($vehicle) use ($today, $current_time) {
-            // Collect all booking dates for this vehicle
-            $all_booking_dates = $vehicle->bookings->flatMap(function ($booking) {
-                return $booking->booking_dates;
-            })->unique()->toArray();
-
-            $is_booked_today = in_array($today, $all_booking_dates);
-            $is_booked       = false;
-            $renter_info     = null;
-
-            foreach ($vehicle->bookings as $booking) {
-                if ($booking->booking_type === 'multiple_day') {
-                    if (in_array($today, $booking->booking_dates)) {
-                        $is_booked   = true;
-                        $renter_info = [
-                            "id"                => $booking->id,
-                            "renter_name"       => $booking->renter_name,
-                            "phone"             => $booking->phone_number,
-                            "booking_time_from" => $booking->booking_time_from,
-                            "booking_time_to"   => $booking->booking_time_to,
-                        ];
-                        break;
-                    }
-                } elseif ($booking->booking_type === 'single_day') {
-                    if (in_array($today, $booking->booking_dates) && $booking->booking_time_to >= $current_time) {
-                        $is_booked   = true;
-                        $renter_info = [
-                            "id"                => $booking->id,
-                            "renter_name"       => $booking->renter_name,
-                            "phone"             => $booking->phone_number,
-                            "booking_time_from" => $booking->booking_time_from,
-                            "booking_time_to"   => $booking->booking_time_to,
-                        ];
-                        break;
-                    }
-                }
-            }
+            $is_currently_booked = $vehicle->bookings->contains(function ($booking) use ($nowDate, $nowTime) {
+                return $booking->booking_date === $nowDate &&
+                strtotime($booking->from) <= strtotime($nowTime) &&
+                strtotime($booking->to) >= strtotime($nowTime);
+            });
 
             return [
-                "id"          => $vehicle->id,
-                "title"       => $vehicle->name,
-                "code"        => $vehicle->number_plate,
-                "category"    => $vehicle->category->name,
-                "image"       => $vehicle->category->icon,
-                "book"        => $is_booked,
-                "booked"      => array_values($all_booking_dates),
-                "renter_info" => $renter_info,
+                "id"       => $vehicle->id,
+                "title"    => $vehicle->name,
+                "code"     => $vehicle->number_plate,
+                "category" => $vehicle->category->name ?? '',
+                "image"    => $vehicle->category->icon ?? '',
+                "book"     => $is_currently_booked,
+                "booked"   => $all_booking_dates,
             ];
         });
-
         return response()->json([
             'status'  => true,
             'message' => 'Data retrieved successfully',
@@ -127,53 +50,143 @@ class HomeController extends Controller
         ]);
     }
 
+//     public function statistic()
+//     {
+//         $nowDate       = now()->format('Y-m-d');
+//         $nowTime       = now()->format('h:i A');
+//         $total_vehicle = Vahicle::count();
+//         $vehicles      = Vahicle::with('category', 'bookings')->get();
+// $data = $vehicles->transform(function ($vehicle) use ($nowDate, $nowTime) {
+//     $is_booked_today = false;
+//     $is_booked = false;
+//     $is_available = true;
+
+//     // আজকের সব বুকিং
+//     $todayBookings = $vehicle->bookings->filter(function ($booking) use ($nowDate) {
+//         return $booking->booking_date === $nowDate;
+//     });
+
+//     // বর্তমানে চলছে এমন বুকিং
+//     $currentBooking = $todayBookings->filter(function ($booking) use ($nowTime) {
+//         return $booking->from <= $nowTime && $booking->to >= $nowTime;
+//     });
+
+//     // স্টেট আপডেট
+//     if ($todayBookings->isNotEmpty()) {
+//         $is_booked_today = true;
+//     }
+
+//     if ($currentBooking->isNotEmpty()) {
+//         $is_booked = true;
+//         $is_available = false;
+//     }
+
+//     return [
+//         "id"               => $vehicle->id,
+//         "title"            => $vehicle->name,
+//         "code"             => $vehicle->number_plate,
+//         "category"         => $vehicle->category,
+//         "book"             => $is_booked ? "true" : "false",
+//         "is_booked_today"  => $is_booked_today,
+//         "is_booked"        => $is_booked,
+//         "is_available"     => $is_available,
+//     ];
+// });
+// return $data;
+//         // $data = $vehicles->map(function ($vehicle) use ($nowDate, $nowTime) {
+//         //     $is_booked_today      = false;
+//         //     $is_booked            = false;
+//         //     $is_available         = true;
+
+//             // if ($is_booked || $today_bookings_count > 0) {
+//             //     $is_available = false;
+//             // }
+
+//             // return [
+//             //     'id'           => $vehicle->id,
+//             //     'title'        => $vehicle->name,
+//             //     'code'         => $vehicle->number_plate,
+//             //     'image'        => $vehicle->category->icon,
+//             //     'booked_today' => $today_bookings_count,
+//             //     'available'    => $is_available,
+//             //     'category'     => $vehicle->category->name,
+//             // ];
+//         // });
+// return $vehicles;
+//         // $available_vehicles = $data->where('available', true)->values();
+//         // $available_count    = $available_vehicles->count();
+//         // $booked             = $data->where('available', false)->count();
+
+//         // $available_info = $available_vehicles->groupBy('category')->map(function ($categoryVehicles) {
+//         //     return [
+//         //         'category' => $categoryVehicles->first()['category'],
+//         //         'count'    => $categoryVehicles->count(),
+//         //         'image'    => $categoryVehicles->first()['image'],
+//         //     ];
+//         // })->values()->toArray();
+
+//         // return response()->json([
+//         //     'status'  => true,
+//         //     'message' => 'Data retrieved successfully',
+//         //     'data'    => [
+//         //         'total_vehicle'  => $total_vehicle,
+//         //         'available'      => $available_count,
+//         //         'booked'         => $booked,
+//         //         'available_info' => $available_info,
+//         //     ],
+//         // ]);
+//     }
+
     public function statistic()
     {
-        $today         = now()->format('Y-m-d');
-        $current_time  = now()->format('H:i:s');
+        $nowDate       = now()->format('Y-m-d');
+        $nowTime       = now()->format('h:i A');
         $total_vehicle = Vahicle::count();
-        $vehicles      = Vahicle::with('category', 'bookings')->get();
 
-        $data = $vehicles->map(function ($vehicle) use ($today, $current_time) {
-            $is_booked_today      = false;
-            $is_booked            = false;
-            $is_available         = true;
-            $today_bookings_count = 0;
+        $vehicles = Vahicle::with('category', 'bookings')->get();
 
-            foreach ($vehicle->bookings as $booking) {
-                if ($booking->booking_type === 'multiple_day') {
-                    $booking_dates = $booking->booking_dates;
-                    if (in_array($today, $booking_dates)) {
-                        $today_bookings_count++;
-                    }
-                } elseif ($booking->booking_type === 'single_day') {
-                    if ($booking->booking_time_to >= $current_time) {
-                        $is_booked = true;
-                    } else {
-                        $is_booked = false;
-                    }
-                }
+        $data = $vehicles->transform(function ($vehicle) use ($nowDate, $nowTime) {
+            $is_booked_today = false;
+            $is_booked       = false;
+            $is_available    = true;
+
+            // আজকের সব বুকিং
+            $todayBookings = $vehicle->bookings->filter(function ($booking) use ($nowDate) {
+                return $booking->booking_date === $nowDate;
+            });
+
+            // বর্তমানে চলছে এমন বুকিং
+            $currentBooking = $todayBookings->filter(function ($booking) use ($nowTime) {
+                return $booking->from <= $nowTime && $booking->to >= $nowTime;
+            });
+
+            if ($todayBookings->isNotEmpty()) {
+                $is_booked_today = true;
             }
 
-            if ($is_booked || $today_bookings_count > 0) {
+            if ($currentBooking->isNotEmpty()) {
+                $is_booked    = true;
                 $is_available = false;
             }
 
             return [
-                'id'           => $vehicle->id,
-                'title'        => $vehicle->name,
-                'code'         => $vehicle->number_plate,
-                'image'        => $vehicle->category->icon,
-                'booked_today' => $today_bookings_count,
-                'available'    => $is_available,
-                'category'     => $vehicle->category->name,
+                "id"           => $vehicle->id,
+                "title"        => $vehicle->name,
+                "code"         => $vehicle->number_plate,
+                "category"     => $vehicle->category->name,
+                "image"        => asset('uploads/category/' . $vehicle->category->icon),
+                "booked_today" => $is_booked_today,
+                "is_booked"    => $is_booked,
+                "available"    => $is_available,
             ];
         });
 
+        // Available and booked count
         $available_vehicles = $data->where('available', true)->values();
         $available_count    = $available_vehicles->count();
         $booked             = $data->where('available', false)->count();
 
+        // Grouping by category
         $available_info = $available_vehicles->groupBy('category')->map(function ($categoryVehicles) {
             return [
                 'category' => $categoryVehicles->first()['category'],

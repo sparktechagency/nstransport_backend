@@ -30,6 +30,7 @@ Route::middleware('auth:sanctum', 'admin.user')->group(function () {
     Route::put('customer-update/{customer_id}', [BookingController::class, 'multipleBookingUpdate']);
     Route::get('vehicle-booking-list/{id}', [BookingController::class, 'vehicleBookingList']);
     Route::resource('vehicle', VehicleController::class);
+    Route::get('search', [HomeController::class, 'search']);
 
 
 
@@ -38,6 +39,5 @@ Route::middleware('auth:sanctum', 'admin.user')->group(function () {
 
 
     Route::get('statistic', [HomeController::class, 'statistic']);
-    Route::get('search', [HomeController::class, 'search']);
     Route::get('search_by_type', [HomeController::class, 'searchByType']);
 });
