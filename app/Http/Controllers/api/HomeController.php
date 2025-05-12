@@ -184,7 +184,7 @@ class HomeController extends Controller
 
         return response()->json([
             'status'  => true,
-            'message' => 'Filtered vehicles retrieved successfully.',
+            'message' => 'Vehicles booking info retrieved successfully.',
             'data'    => $data,
         ]);
     }
