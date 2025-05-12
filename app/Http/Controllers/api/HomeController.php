@@ -4,7 +4,6 @@ namespace App\Http\Controllers\api;
 use App\Http\Controllers\Controller;
 use App\Models\Vahicle;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 class HomeController extends Controller
 {
@@ -63,12 +62,10 @@ class HomeController extends Controller
             $is_booked       = false;
             $is_available    = true;
 
-            // আজকের সব বুকিং
             $todayBookings = $vehicle->bookings->filter(function ($booking) use ($nowDate) {
                 return $booking->booking_date === $nowDate;
             });
 
-            // এখন চলছে এমন বুকিং
             $currentBooking = $todayBookings->filter(function ($booking) use ($nowTime) {
                 return strtotime($booking->from) <= strtotime($nowTime)
                 && strtotime($booking->to) >= strtotime($nowTime);
@@ -120,218 +117,75 @@ class HomeController extends Controller
 
     public function searchByType(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'type' => 'required|string',
-        ]);
+        $nowDate = now()->format('Y-m-d');
+        $nowTime = now()->format('h:i A');
 
-        if ($validator->fails()) {
-            return response()->json([
-                'status'  => false,
-                'message' => $validator->errors(),
-            ]);
+        $vehicles = Vahicle::with('category', 'bookings.customer');
+
+        if ($request->search) {
+            $vehicles = $vehicles->where(function ($query) use ($request) {
+                $query->where('name', 'LIKE', '%' . $request->search . '%')
+                    ->orWhere('number_plate', 'LIKE', '%' . $request->search . '%');
+            });
         }
 
-        $today        = now()->format('Y-m-d');
-        $current_time = now()->format('H:i:s');
+        if ($request->category) {
+            $vehicles = $vehicles->whereHas('category', function ($query) use ($request) {
+                $query->where('name', 'LIKE', '%' . $request->category . '%');
+            });
+        }
+        $vehicles = $vehicles->get();
 
-        if ($request->type == 'total') {
-            $vehicles = Vahicle::with('bookings', 'category');
+        $filter = $request->filter;
 
-            if ($request->search) {
-                $vehicles = $vehicles->where(function ($query) use ($request) {
-                    $query->where('name', 'LIKE', '%' . $request->search . '%')
-                        ->orWhere('number_plate', 'LIKE', '%' . $request->search . '%');
-                });
-            }
-            if ($request->category) {
-                $vehicles = $vehicles->whereHas('category', function ($query) use ($request) {
-                    $query->where('name', 'LIKE', '%' . $request->category . '%');
-                });
-            }
+        $data = $vehicles->map(function ($vehicle) use ($nowDate, $nowTime) {
+            $is_booked   = false;
+            $renter_info = null;
 
-            $vehicles     = $vehicles->get();
-            $today        = now()->format('Y-m-d');
-            $current_time = now()->format('H:i:s');
+            $todayBookings = $vehicle->bookings->filter(function ($booking) use ($nowDate) {
+                return $booking->booking_date === $nowDate;
+            });
 
-            $data = $vehicles->map(function ($vehicle) use ($today, $current_time, $request) {
-                $all_booking_dates = $vehicle->bookings->flatMap(fn($booking) => $booking->booking_dates)->unique()->toArray();
+            $currentBooking = $todayBookings->first(function ($booking) use ($nowTime) {
+                return strtotime($booking->from) <= strtotime($nowTime) &&
+                strtotime($booking->to) >= strtotime($nowTime);
+            });
 
-                $is_booked_today = in_array($today, $all_booking_dates);
-                $is_booked       = false;
-                $renter_info     = null;
+            if ($currentBooking) {
+                $is_booked = true;
 
-                foreach ($vehicle->bookings as $booking) {
-                    if ($booking->booking_type === 'multiple_day' && in_array($today, $booking->booking_dates)) {
-                        $is_booked   = true;
-                        $renter_info = [
-                            "id"                => $booking->id,
-                            "renter_name"       => $booking->renter_name,
-                            "phone"             => $booking->phone_number,
-                            "booking_time_from" => $booking->booking_time_from,
-                            "booking_time_to"   => $booking->booking_time_to,
-                        ];
-                        break;
-                    } elseif ($booking->booking_type === 'single_day' && in_array($today, $booking->booking_dates) && $booking->booking_time_to >= $current_time) {
-                        $is_booked   = true;
-                        $renter_info = [
-                            "id"                => $booking->id,
-                            "renter_name"       => $booking->renter_name,
-                            "phone"             => $booking->phone_number,
-                            "booking_time_from" => $booking->booking_time_from,
-                            "booking_time_to"   => $booking->booking_time_to,
-                        ];
-                        break;
-                    }
-                }
+                $renter = $currentBooking->customer ?? null;
 
-                if (($request->filter == 'available' && $is_booked) || ($request->filter == 'booked' && ! $is_booked)) {
-                    return null;
-                }
-
-                return [
-                    "id"          => $vehicle->id,
-                    "title"       => $vehicle->name,
-                    "code"        => $vehicle->number_plate,
-                    "category"    => optional($vehicle->category)->name,
-                    "image"       => optional($vehicle->category)->icon,
-                    "book"        => $is_booked,
-                    "booked"      => array_values($all_booking_dates),
-                    "renter_info" => $renter_info,
+                $renter_info = [
+                    'id'           => $renter->id ?? null,
+                    'name'         => $renter->name ?? '',
+                    'phone'        => $renter->phone ?? '',
+                    'booking_from' => $currentBooking->from,
+                    'booking_to'   => $currentBooking->to,
                 ];
-            })->filter()->values();
-
-            return response()->json([
-                'status'  => true,
-                'message' => 'Total vehicles retrieved successfully.',
-                'data'    => $data,
-            ]);
-        }
-
-        if ($request->type == 'booked') {
-            $vehicles = Vahicle::with('bookings');
-
-            if ($request->search) {
-                $vehicles = $vehicles->where(function ($query) use ($request) {
-                    $query->where('name', 'LIKE', '%' . $request->search . '%')
-                        ->orWhere('number_plate', 'LIKE', '%' . $request->search . '%');
-                });
             }
 
-            $vehicles = $vehicles->get();
-
-            $data = $vehicles->map(function ($vehicle) use ($today, $current_time, $request) {
-                $all_booking_dates = $vehicle->bookings->flatMap(fn($booking) => $booking->booking_dates)->unique()->toArray();
-
-                $is_booked_today = in_array($today, $all_booking_dates);
-                $is_booked       = false;
-
-                foreach ($vehicle->bookings as $booking) {
-                    if ($booking->booking_type === 'multiple_day' && in_array($today, $booking->booking_dates)) {
-                        $is_booked   = true;
-                        $renter_info = [
-                            "id"                => $booking->id,
-                            "renter_name"       => $booking->renter_name,
-                            "phone"             => $booking->phone_number,
-                            "booking_time_from" => $booking->booking_time_from,
-                            "booking_time_to"   => $booking->booking_time_to,
-                        ];
-                        break;
-                    } elseif ($booking->booking_type === 'single_day' && in_array($today, $booking->booking_dates) && $booking->booking_time_to >= $current_time) {
-                        $is_booked   = true;
-                        $renter_info = [
-                            "id"                => $booking->id,
-                            "renter_name"       => $booking->renter_name,
-                            "phone"             => $booking->phone_number,
-                            "booking_time_from" => $booking->booking_time_from,
-                            "booking_time_to"   => $booking->booking_time_to,
-                        ];
-                        break;
-                    }
-                }
-
-                if (! $is_booked) {
-                    return null;
-                }
-
-                return [
-                    "id"          => $vehicle->id,
-                    "title"       => $vehicle->name,
-                    "code"        => $vehicle->number_plate,
-                    "category"    => optional($vehicle->category)->name,
-                    "image"       => optional($vehicle->category)->icon,
-                    "book"        => $is_booked,
-                    "booked"      => array_values($all_booking_dates),
-                    "renter_info" => $renter_info,
-                ];
-            })->filter()->values();
-
-            return response()->json([
-                'status'  => true,
-                'message' => 'Booked vehicle retrieved successfully.',
-                'data'    => $data,
-            ]);
-        }
-
-        if ($request->type == 'available') {
-            $vehicles = Vahicle::with('bookings');
-            if ($request->category) {
-                $vehicles = $vehicles->whereHas('category', function ($query) use ($request) {
-                    $query->where('name', $request->category);
-                });
+            return [
+                'id'            => $vehicle->id,
+                'title'         => $vehicle->name,
+                'code'          => $vehicle->number_plate,
+                'category_name' => $vehicle->category->name ?? '',
+                'is_booked'     => $is_booked,
+                'renter_info'   => $renter_info,
+            ];
+        })->filter(function ($vehicle) use ($filter) {
+            if ($filter === 'available') {
+                return ! $vehicle['is_booked'];
+            } elseif ($filter === 'booked') {
+                return $vehicle['is_booked'];
             }
-
-            if ($request->search) {
-                $vehicles = $vehicles->where(function ($query) use ($request) {
-                    $query->where('name', 'LIKE', '%' . $request->search . '%')
-                        ->orWhere('number_plate', 'LIKE', '%' . $request->search . '%');
-                });
-            }
-
-            $vehicles = $vehicles->get();
-
-            $data = $vehicles->map(function ($vehicle) use ($today, $current_time, $request) {
-                $all_booking_dates = $vehicle->bookings->flatMap(fn($booking) => $booking->booking_dates)->unique()->toArray();
-
-                $is_booked_today = in_array($today, $all_booking_dates);
-                $is_booked       = false;
-
-                foreach ($vehicle->bookings as $booking) {
-                    if ($booking->booking_type === 'multiple_day' && in_array($today, $booking->booking_dates)) {
-                        $is_booked = true;
-                        break;
-                    } elseif ($booking->booking_type === 'single_day' && in_array($today, $booking->booking_dates) && $booking->booking_time_to >= $current_time) {
-                        $is_booked = true;
-                        break;
-                    }
-                }
-
-                if ($is_booked) {
-                    return null;
-                }
-
-                return [
-                    "id"          => $vehicle->id,
-                    "title"       => $vehicle->name,
-                    "code"        => $vehicle->number_plate,
-                    "category"    => optional($vehicle->category)->name,
-                    "image"       => optional($vehicle->category)->icon,
-                    "book"        => $is_booked,
-                    "booked"      => null,
-                    "renter_info" => null,
-                ];
-            })->filter()->values();
-
-            return response()->json([
-                'status'  => true,
-                'message' => 'Available vehicle retrieved successfully.',
-                'data'    => $data,
-            ]);
-        }
+            return true;
+        })->values();
 
         return response()->json([
-            'status'  => false,
-            'message' => 'Invalid type specified.',
-            'data'    => null,
+            'status'  => true,
+            'message' => 'Filtered vehicles retrieved successfully.',
+            'data'    => $data,
         ]);
     }
 
