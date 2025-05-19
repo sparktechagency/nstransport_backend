@@ -38,7 +38,7 @@ class HomeController extends Controller
                 "code"     => $vehicle->number_plate,
                 "category" => $vehicle->category->name ?? '',
                 "image"    => $vehicle->category->icon ?? '',
-                "book"     => $is_currently_booked,
+                "is_book"     => $is_currently_booked,
                 "booked"   => $all_booking_dates,
             ];
         });

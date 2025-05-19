@@ -29,6 +29,7 @@ Route::middleware('auth:sanctum', 'admin.user')->group(function () {
     Route::put('booking-update/{id}', [BookingController::class, 'bookingUpdate']);
     Route::put('customer-update/{customer_id}', [BookingController::class, 'multipleBookingUpdate']);
     Route::get('vehicle-booking-list/{id}', [BookingController::class, 'vehicleBookingList']);
+    Route::get('check-availability/{id}', [BookingController::class, 'checkAvailability']);
     Route::resource('vehicle', VehicleController::class);
     Route::get('search', [HomeController::class, 'search']);
     Route::get('statistic', [HomeController::class, 'statistic']);
