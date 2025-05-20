@@ -145,16 +145,25 @@ class BookingController extends Controller
         $nowDate = now()->format('Y-m-d');
         $nowTime = now()->format('h:i A');
 
-        $bookings = Booking::with('customer')
-            ->where('vehicle_id', $id)
+        $bookings = Booking::with('customer');
+        if ($request->search) {
+            $bookings = $bookings->whereHas('customer', function ($q) use ($request) {
+                $q->where('name', 'LIKE', '%' . $request->search . '%')
+                    ->orWhere('phone', 'LIKE', '%' . $request->search . '%');
+            });
+        }
+
+        $bookings = $bookings->where('vehicle_id', $id)
             ->get()
-            ->filter(function ($booking) use ($nowDate, $nowTime) {
-                if ($booking->booking_date === $nowDate) {
-                    $bookingTo   = Carbon::parse($booking->to);
-                    $currentTime = Carbon::parse($nowTime);
-                    return $bookingTo->gte($currentTime);
+            ->filter(function ($booking) use ($nowDate, $nowTime, $request) {
+                if ($request->booking_date) {
+                    return $booking->booking_date === $request->booking_date;
+                } else {
+                    if ($booking->booking_date === $nowDate) {
+                        return Carbon::parse($booking->to)->format('H:i') >= $nowTime;
+                    }
+                    return $booking->booking_date > $nowDate;
                 }
-                return $booking->booking_date > $nowDate;
             })
             ->sortBy([
                 ['booking_date', 'asc'],
@@ -168,35 +177,34 @@ class BookingController extends Controller
             'data'    => $bookings,
         ]);
     }
-public function checkAvailability(Request $request, $id)
-{
-    $request->validate([
-        'date' => 'required',
-        'from' => 'required',
-        'to'   => 'required',
-    ]);
+    public function checkAvailability(Request $request, $id)
+    {
+        $request->validate([
+            'date' => 'required',
+            'from' => 'required',
+            'to'   => 'required',
+        ]);
 
-    $hasBooking = Booking::where('vehicle_id', $id)
-        ->whereDate('booking_date', $request->date)
-        ->where(function ($query) use ($request) {
-            $query->whereTime('from', '<', $request->to)
-                  ->whereTime('to', '>', $request->from);
-        })
-        ->exists();
+        $hasBooking = Booking::where('vehicle_id', $id)
+            ->whereDate('booking_date', $request->date)
+            ->where(function ($query) use ($request) {
+                $query->whereTime('from', '<', $request->to)
+                    ->whereTime('to', '>', $request->from);
+            })
+            ->exists();
 
-    $isAvailable = !$hasBooking;
+        $isAvailable = ! $hasBooking;
 
-    return response()->json([
-        'status'  => true,
-        'message' => 'Status returned successfully',
-        'data'    => [
-            'is_available' => $isAvailable,
-            'availability_message' => $isAvailable
+        return response()->json([
+            'status'  => true,
+            'message' => 'Status returned successfully',
+            'data'    => [
+                'is_available'         => $isAvailable,
+                'availability_message' => $isAvailable
                 ? 'Vehicle is available.'
                 : 'Vehicle is not available.',
-        ],
-    ]);
-}
-
+            ],
+        ]);
+    }
 
 }
